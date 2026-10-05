@@ -41,6 +41,9 @@ const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const fs=()=>document.documentElement.style.setProperty('--fs',S.cfg.fs+'px');fs();
 let V='exsub',D=null,Q=null,Sub='';
 const go=v=>{V=v;R();scrollTo(0,0)};
+const PW='9903b7af8f28355dd09a3a1af1558401d357105dc05d9a8ec26a544e8669a8af';
+const sha=async t=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode('ep-v1:'+t)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+const ok=()=>localStorage.getItem('ep_ok')===PW;
 
 function parse(t){
   return t.split(/^\s*Q\d+\.\s*/m).slice(1).map(b=>{
@@ -66,14 +69,16 @@ const busy=m=>{app.innerHTML=`<h1>${m}</h1><p class="m">Please keep this page op
 
 function R(){
   const AS=getSubs(),subs=Object.keys(AS);let h='';
-  if(V=='upload'){
+  if((V=='upload'||V=='answers')&&!ok()){
+    h=`<h1>Upload is locked</h1><p class="m">Only people with the password can add quizzes.</p><label>Password</label><input id="pw" type="password" autocomplete="off"><button class="pri full" data-a="unlock">Unlock</button>`;
+  }else if(V=='upload'){
     h=`<h1>Add a quiz</h1>
     <label>Subject</label>
     <select id="sub">${subs.map(s=>`<option>${esc(s)}</option>`).join('')}<option value="">+ New subject</option></select>
     <input id="ns" placeholder="New subject name" style="margin-top:.6rem;${subs.length?'display:none':''}">
     <label>Quiz text file (.txt)</label><input id="file" type="file" accept=".txt,text/plain">
     <label>Exam name (optional)</label><input id="ti" placeholder="e.g. Lecture 3">
-    <button class="pri full" data-a="up">Next: set correct answers</button>`;
+    <button class="pri full" data-a="up">Next: set correct answers</button><button class="full" data-a="lock">Lock upload</button>`;
   }else if(V=='answers'){
     const q=D.qs[D.i],n=D.qs.length;
     h=`<h1>Set correct answers</h1><p class="m">${esc(D.title)} · question ${D.i+1} of ${n}</p>
@@ -107,9 +112,9 @@ function R(){
     `<div class="row"><button class="pri" data-a="start" data-w="${Q.ex.id}">Try again</button><button data-a="go" data-v="exlist">Back</button></div>`;
   }else if(V=='settings'){
     h=`<h1>Settings</h1>
-    <label>OpenRouter API key (stored only on this phone)</label><input id="key" type="password" value="${esc(S.cfg.key)}" placeholder="sk-or-...">
+    ${ok()?`<label>OpenRouter API key (stored only on this phone)</label><input id="key" type="password" value="${esc(S.cfg.key)}" placeholder="sk-or-...">
     <label>Model</label><input id="model" value="${esc(S.cfg.model)}">
-    <button class="pri full" data-a="cfg">Save settings</button>
+    <button class="pri full" data-a="cfg">Save settings</button>`:''}
     <label>Text size: ${S.cfg.fs}px</label>
     <div class="row"><button data-a="fs" data-v="-1">A −</button><button data-a="fs" data-v="1">A +</button></div>
     <label>Backup</label>
@@ -126,7 +131,12 @@ const BUILTIN={"Basic Mechanics 기초역학":[{"id":"b1","title":"01 Engineerin
 const getSubs=()=>{const r={};for(const k in BUILTIN)r[k]=[...BUILTIN[k]];for(const k in S.subs)r[k]=[...(r[k]||[]),...S.subs[k]];return r};
 const A={
   go:v=>go(v),
-  async up(){
+  async unlock(){
+    if(!window.crypto||!crypto.subtle)return alert('Please open the app from its https link.');
+    if(await sha($('#pw').value)===PW){localStorage.setItem('ep_ok',PW);R()}else alert('Wrong password');
+  },
+  lock(){localStorage.removeItem('ep_ok');go('exsub')},
+  async up(){if(!ok())return;
     const sub=$('#sub').value||$('#ns').value.trim(),f=$('#file').files[0];
     if(!sub||!f)return alert('Choose a subject and a text file.');
     const qs=parse(await f.text());
@@ -135,7 +145,7 @@ const A={
   },
   setans(v){D.qs[D.i].a=+v;R()},
   prev(){D.i--;R()},next(){D.i++;R()},
-  async finish(){
+  async finish(){if(!ok())return;
     if(D.edit){save();Sub=D.sub;return go('exlist')}
     if(S.cfg.key){busy('Translating to English…');
       try{await translate(D.qs)}catch(e){alert('Translation failed: '+e.message+'\nSaved in Korean only. You can retry with the Translate button.')}}
@@ -144,14 +154,14 @@ const A={
   },
   subj(v){Sub=v;go('exlist')},
   start(w){const ex=find(w)||Q.ex;Q={ex,i:0,sel:[]};go('quiz')},
-  edit(w){const ex=find(w);D={sub:Sub,title:ex.title,qs:ex.qs,i:0,edit:1};go('answers')},
-  async tr(w){
+  edit(w){if(!ok())return;const ex=find(w);D={sub:Sub,title:ex.title,qs:ex.qs,i:0,edit:1};go('answers')},
+  async tr(w){if(!ok())return;
     if(!S.cfg.key)return alert('Add your OpenRouter key in Settings first.');
     busy('Translating to English…');
     try{await translate(find(w).qs);save()}catch(e){alert('Translation failed: '+e.message)}
     go('exlist');
   },
-  del(w){if(confirm('Delete this exam?')){S.subs[Sub]=S.subs[Sub].filter(e=>e.id!=w);if(!S.subs[Sub].length)delete S.subs[Sub];save();go(S.subs[Sub]?'exlist':'exsub')}},
+  del(w){if(!ok())return;if(confirm('Delete this exam?')){S.subs[Sub]=S.subs[Sub].filter(e=>e.id!=w);if(!S.subs[Sub].length)delete S.subs[Sub];save();go(S.subs[Sub]?'exlist':'exsub')}},
   pick(v){if(Q.sel[Q.i]!=null)return;Q.sel[Q.i]=+v;R()},
   nq(){if(Q.i<Q.ex.qs.length-1){Q.i++;R();scrollTo(0,0)}else go('result')},
   cfg(){S.cfg.key=$('#key').value.trim();S.cfg.model=$('#model').value.trim()||'anthropic/claude-sonnet-4.5';save();alert('Saved')},

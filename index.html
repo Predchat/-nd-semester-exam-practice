@@ -3,6 +3,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f5c63">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Exam Practice"><meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Exam Practice</title>
 <style>
 :root{--bg:#f6f8f8;--fg:#14201f;--card:#fff;--line:#c9d6d5;--pri:#0f5c63;--on:#fff;--ok:#16794a;--okb:#dff3e8;--bad:#b3261e;--badb:#fbe3e1;--mut:#4d605f;--fs:18px}
@@ -41,7 +42,7 @@ const save=()=>localStorage.setItem('ep',JSON.stringify(S));
 const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fs=()=>document.documentElement.style.setProperty('--fs',S.cfg.fs+'px');fs();
 let V='exsub',D=null,Q=null,Sub='';
-const BUILD='20261008220354';
+const BUILD='20261009094003';
 (async()=>{try{
  if('serviceWorker' in navigator)(await navigator.serviceWorker.getRegistrations()).forEach(r=>r.unregister());
  if(window.caches)(await caches.keys()).forEach(k=>caches.delete(k));
@@ -95,7 +96,7 @@ function R(){
     q.o.map((o,k)=>`<button class="opt ${q.a===k?'sel':''}" data-a="setans" data-v="${k}">${k+1}. ${esc(o)}</button>`).join('')+
     `<div class="row"><button data-a="prev" ${D.i?'':'disabled'}>Back</button>${D.i<n-1?'<button data-a="next">Next</button>':'<button class="pri" data-a="finish">Save exam</button>'}</div>`;
   }else if(V=='exsub'){
-    h=`<h1>Choose a subject</h1>`+(subs.length?subs.map(s=>`<button class="opt" data-a="subj" data-v="${esc(s)}">${esc(s)} (${AS[s].length})</button>`).join(''):`<p>No exams yet. Add a quiz first.</p>`);
+    h=resumeCard()+inst()+`<h1>Choose a subject</h1>`+(subs.length?subs.map(s=>`<button class="opt" data-a="subj" data-v="${esc(s)}">${esc(s)} (${AS[s].length})</button>`).join(''):`<p>No exams yet. Add a quiz first.</p>`);
   }else if(V=='exlist'){
     const L=AS[Sub]||[];
     h=`<h1>${esc(Sub)}</h1>`+(L.length?L.map(e=>{
@@ -120,7 +121,7 @@ function R(){
       <p>Your answer: ${Q.sel[i]!=null?esc(x.o[Q.sel[i]]):'-'}</p><p><b>Correct: ${esc(x.o[x.a])}</b>${x.oe?`<span class="en"> (${esc(x.oe[x.a])})</span>`:''}</p></div>`).join(''):'<p><b>All correct!</b></p>')+
     `<div class="row"><button class="pri" data-a="start" data-w="${Q.ex.id}">Try again</button><button data-a="go" data-v="exlist">Back</button></div>`;
   }else if(V=='settings'){
-    h=`<h1>Settings</h1><label>Show translations</label>${tgl()}
+    h=`<h1>Settings</h1><label>Show translations</label>${tgl()}${inst(1)}
     ${ok()?`<label>OpenRouter API key (stored only on this phone)</label><input id="key" type="password" value="${esc(S.cfg.key)}" placeholder="sk-or-...">
     <label>Model</label><input id="model" value="${esc(S.cfg.model)}">
     <button class="pri full" data-a="cfg">Save settings</button>`:''}
@@ -141,8 +142,25 @@ let aid=0;const getSubs=()=>{const r={};for(const k in BUILTIN){const L=BUILTIN[
 const enOn=()=>S.cfg.en!==false;
 const tr=(x,d)=>{let h='';const hide=Q.ex.lt&&!d;if(enOn()&&x.qe&&!hide)h+=`<div class="en">${esc(x.qe)}</div>`;if(S.cfg.si&&x.si&&!hide)h+=`<div class="en">${esc(x.si)}</div>`;return h};
 const tgl=()=>`<div class="row" style="margin:0 0 .6rem">${[['en','English',enOn()],['si','සිංහල',!!S.cfg.si]].map(([k,l,on])=>`<button class="${on?'sel':''}" data-a="tgl" data-v="${k}">${l}: ${on?'ON':'OFF'}</button>`).join('')}</div>`;
+const shuf=a=>{a=[...a];for(let i=a.length;i>1;){const j=Math.floor(Math.random()*i--);[a[i],a[j]]=[a[j],a[i]]}return a};
+const getProg=()=>{try{return JSON.parse(localStorage.getItem('ep_prog'))}catch(e){return null}};
+const saveProg=()=>{try{localStorage.setItem('ep_prog',JSON.stringify({sub:Sub,id:Q.ex.id,qs:Q.ex.qs.map(x=>x.q),i:Q.i,sel:Array.from(Q.sel,v=>v==null?null:v),t:Date.now()}))}catch(e){}};
+const clearProg=()=>{try{localStorage.removeItem('ep_prog')}catch(e){}};
+const progEx=p=>{if(!p||!p.qs)return null;const ex=(getSubs()[p.sub]||[]).find(e=>e.id==p.id);if(!ex)return null;const mp=new Map(ex.qs.map(x=>[x.q,x]));const qs=p.qs.map(t=>mp.get(t));return qs.every(Boolean)?{...ex,qs}:null};
+const resumeCard=()=>{const p=getProg(),ex=progEx(p);if(!ex)return '';const k=p.sel.filter(v=>v!=null).length;return `<div class="card"><b>Resume your exam</b><p class="m">${esc(p.sub)} · ${esc(ex.title)}<br>Question ${p.i+1} of ${ex.qs.length} · answered ${k}</p><button class="pri full" data-a="resume">Resume exam</button><button class="full" data-a="discard">Start over</button></div>`};
+let DP=null;addEventListener('beforeinstallprompt',e=>{e.preventDefault();DP=e;R()});addEventListener('appinstalled',()=>{DP=null;R()});
+const standalone=()=>matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const inst=f=>{if(standalone()||(!f&&localStorage.getItem('ep_inst')))return '';
+ const how=isIOS()?'On iPhone/iPad open this page in <b>Safari</b>, tap the <b>Share</b> button (square with an arrow), then <b>Add to Home Screen</b>.':'In Chrome tap the <b>⋮ menu</b>, then <b>Install app</b> or <b>Add to Home screen</b>.';
+ return `<div class="card"><b>Add to home screen</b><p class="m">Open the app with one tap, like a normal app. No need to paste the link again.</p>${DP?'<button class="pri full" data-a="install">Install app</button>':`<p>${how}</p>`}${f?'<button class="full" data-a="share">Share app link</button>':'<button class="full" data-a="hide">Not now</button>'}</div>`};
 const A={
   go:v=>go(v),
+  resume(){const p=getProg(),ex=progEx(p);if(!ex){clearProg();return R()}Sub=p.sub;Q={ex,i:p.i,sel:p.sel.map(v=>v==null?undefined:v)};go('quiz')},
+  discard(){if(confirm('Discard the exam in progress and start over?')){clearProg();R()}},
+  install(){DP.prompt();DP.userChoice.finally(()=>{DP=null;R()})},
+  hide(){localStorage.setItem('ep_inst','1');R()},
+  async share(){const u=location.href.split('#')[0].split('?')[0];try{if(navigator.share)await navigator.share({title:'Exam Practice',url:u});else{await navigator.clipboard.writeText(u);alert('Link copied')}}catch(e){}},
   tgl(v){S.cfg[v]=v=='en'?!enOn():!S.cfg.si;save();R()},
   async unlock(){
     if(!window.crypto||!crypto.subtle)return alert('Please open the app from its https link.');
@@ -166,7 +184,7 @@ const A={
     save();Sub=D.sub;go('exlist');
   },
   subj(v){Sub=v;go('exlist')},
-  start(w){const ex=find(w)||Q.ex;Q={ex,i:0,sel:[]};go('quiz')},
+  start(w){const ex=find(w)||Q.ex;const p=getProg();if(p&&p.sel.some(v=>v!=null)&&!(V=='result')&&!confirm('You have an exam in progress. Start a new one and discard it?'))return;Q={ex:/^All /.test(ex.title)?{...ex,qs:shuf(ex.qs)}:ex,i:0,sel:[]};go('quiz')},
   edit(w){if(!ok())return;const ex=find(w);D={sub:Sub,title:ex.title,qs:ex.qs,i:0,edit:1};go('answers')},
   async tr(w){if(!ok())return;
     if(!S.cfg.key)return alert('Add your OpenRouter key in Settings first.');
@@ -175,8 +193,8 @@ const A={
     go('exlist');
   },
   del(w){if(!ok())return;if(confirm('Delete this exam?')){S.subs[Sub]=S.subs[Sub].filter(e=>e.id!=w);if(!S.subs[Sub].length)delete S.subs[Sub];save();go(S.subs[Sub]?'exlist':'exsub')}},
-  pick(v){if(Q.sel[Q.i]!=null)return;Q.sel[Q.i]=+v;R()},
-  nq(){if(Q.i<Q.ex.qs.length-1){Q.i++;R();scrollTo(0,0)}else go('result')},
+  pick(v){if(Q.sel[Q.i]!=null)return;Q.sel[Q.i]=+v;saveProg();R()},
+  nq(){if(Q.i<Q.ex.qs.length-1){Q.i++;saveProg();R();scrollTo(0,0)}else{clearProg();go('result')}},
   cfg(){S.cfg.key=$('#key').value.trim();S.cfg.model=$('#model').value.trim()||'anthropic/claude-sonnet-4.5';save();alert('Saved')},
   fs(v){S.cfg.fs=Math.min(30,Math.max(16,S.cfg.fs+ +v));save();fs();R()},
   exp(){
